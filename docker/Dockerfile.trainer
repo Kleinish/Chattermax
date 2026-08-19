@@ -26,7 +26,6 @@ WORKDIR /app
 ENV PYTHONPATH=/opt/piper/src:/opt/piper
 
 COPY app/scripts/ /app/scripts/
-COPY config/ /app/config/
 COPY docker/entrypoint.sh /usr/local/bin/chattermax-entrypoint
 
 RUN chmod +x /usr/local/bin/chattermax-entrypoint \

@@ -20,7 +20,6 @@ WORKDIR /app
 
 COPY app/scripts/ /app/scripts/
 COPY app/web/ /app/web/
-COPY config/ /app/config/
 COPY assets/ /app/assets/
 COPY docker/entrypoint.sh /usr/local/bin/chattermax-entrypoint
 
