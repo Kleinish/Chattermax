@@ -3,7 +3,9 @@ FROM python:3.11-slim
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONUNBUFFERED=1 \
-    WORKSPACE_ROOT=/workspace
+    APP_ROOT=/app \
+    WORKSPACE_ROOT=/app \
+    DATA_ROOT=/data
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg git curl ca-certificates espeak-ng build-essential libsndfile1 sox \
@@ -14,11 +16,18 @@ RUN python -m pip install --upgrade pip setuptools wheel \
       chatterbox-tts openai-whisper rapidfuzz soundfile scipy numpy tqdm \
       num2words peft fastapi uvicorn jinja2 python-multipart httpx
 
-COPY . /opt/chatterbox-piper
-RUN chmod +x /opt/chatterbox-piper/docker/entrypoint.sh \
-    && find /opt/chatterbox-piper/scripts -type f -name '*.sh' -exec chmod +x {} +
+WORKDIR /app
 
-ENTRYPOINT ["/opt/chatterbox-piper/docker/entrypoint.sh"]
-WORKDIR /workspace
+COPY app/scripts/ /app/scripts/
+COPY app/web/ /app/web/
+COPY config/ /app/config/
+COPY assets/ /app/assets/
+COPY docker/entrypoint.sh /usr/local/bin/chattermax-entrypoint
+
+RUN chmod +x /usr/local/bin/chattermax-entrypoint \
+    && find /app/scripts -type f -name '*.sh' -exec chmod +x {} +
+
+ENTRYPOINT ["/usr/local/bin/chattermax-entrypoint"]
+
 EXPOSE 8080
 CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8080"]

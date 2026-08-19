@@ -62,7 +62,5 @@ for x in responses:
 short=['Good morning.','Good afternoon.','Good evening.','Welcome home.','Please try again.','One moment please.','That is complete.','The answer is yes.','The answer is no.','I am ready.','Please continue.','Thank you.','You are welcome.','Check the next item.','Open the settings.','Read the latest message.','Start the process.','Stop the process.','Save the changes.','Cancel the request.']
 out.update(short)
 (OUT/'conversational.txt').write_text('\n'.join(sorted(out))+'\n',encoding='utf-8')
-custom=OUT/'custom.txt'
-if not custom.exists(): custom.write_text('# Add one application-specific phrase per line. Lines beginning with # are ignored.\n',encoding='utf-8')
 print(f'numbers.txt: {len(lines):,} phrases')
 print(f'conversational.txt: {len(out):,} phrases')

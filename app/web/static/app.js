@@ -159,6 +159,76 @@ async function saveSettings(){
   try{await jfetch('/api/settings',{method:'POST',body:JSON.stringify(body)});await refresh();await loadRejects()}catch(e){alert(e.message)}
 }
 
+async function uploadCustomCorpus(){
+  const input = $('customCorpusFile');
+  const button = $('uploadCustomCorpusBtn');
+  const file = input.files[0];
+
+  if(!file){
+    alert('Choose a text file first.');
+    return;
+  }
+
+  if(!file.name.toLowerCase().endsWith('.txt')){
+    alert('Custom phrases must be a .txt file.');
+    return;
+  }
+
+  const form = new FormData();
+  form.append('file', file);
+
+  button.disabled = true;
+  button.textContent = 'Uploading…';
+  $('customCorpusState').textContent =
+    `Uploading ${file.name}…`;
+
+  try{
+    const response = await fetch('/api/corpus/custom', {
+      method: 'POST',
+      body: form
+    });
+
+    if(!response.ok){
+      throw new Error(await response.text());
+    }
+
+    const result = await response.json();
+
+    $('customCorpusState').textContent =
+      `${result.phrases.toLocaleString()} custom phrases loaded.`;
+
+    input.value = '';
+
+  }catch(error){
+    $('customCorpusState').textContent =
+      'Custom phrase upload failed.';
+
+    alert(error.message);
+
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Upload Custom Phrases';
+  }
+}
+
+
+async function refreshCustomCorpus(){
+  try{
+    const status = await jfetch('/api/corpus/custom');
+
+    if(status.exists){
+      $('customCorpusState').textContent =
+        `${status.phrases.toLocaleString()} custom phrases loaded.`;
+    }else{
+      $('customCorpusState').textContent =
+        'No custom phrase file uploaded.';
+    }
+  }catch(error){
+    $('customCorpusState').textContent =
+      'Unable to read custom phrase status.';
+  }
+}
+
 async function uploadReference(){
   const input=$('referenceFile');
   const button=$('uploadReferenceBtn');

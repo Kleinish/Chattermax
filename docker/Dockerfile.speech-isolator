@@ -16,19 +16,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Keep the PyTorch/TorchAudio pair on a version compatible with DeepFilterNet 0.5.6.
-# CPU wheels are intentional: DeepFilterNet is lightweight, and this avoids CUDA/TorchAudio
-# compatibility problems in the cleaner container. Chatty-Piper can still use the GPU separately.
+# Keep the PyTorch/TorchAudio pair compatible with DeepFilterNet 0.5.6.
+# CPU wheels are intentional; ChatterMax generation/training use the GPU separately.
 RUN python -m pip install --retries 10 --timeout 120 \
     pip==24.0 setuptools==69.5.1 wheel==0.41.3 && \
     python -m pip install --retries 10 --timeout 120 \
     torch==2.1.2 torchaudio==2.1.2 \
     --index-url https://download.pytorch.org/whl/cpu
 
-COPY app/requirements.txt /app/requirements.txt
+COPY speech-isolator/app/requirements.txt /app/requirements.txt
 RUN python -m pip install --retries 10 --timeout 120 -r /app/requirements.txt
 
-COPY app/ /app/
+COPY speech-isolator/app/ /app/
 
 RUN mkdir -p /data/input /data/output /data/work /data/cache
 

@@ -97,6 +97,40 @@
       </article>
 
       <article class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Custom phrases</h2>
+            <p>
+              Upload a text file containing additional phrases,
+              one phrase per line.
+            </p>
+          </div>
+        </div>
+
+        <div class="drop">
+          <input
+            type="file"
+            id="customCorpusFile"
+            accept=".txt,text/plain"
+          >
+
+          <button
+            id="uploadCustomCorpusBtn"
+            onclick="uploadCustomCorpus()"
+          >
+            Upload Custom Phrases
+          </button>
+
+          <div
+            class="muted small"
+            id="customCorpusState"
+          >
+            No custom phrase file uploaded.
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
         <div class="panel-head"><div><h2>Settings</h2><p>Saved to .env and used by the next worker process.</p></div></div>
         <div class="form-grid">
           <label>Model<select id="TTS_MODEL"><option value="turbo">Turbo</option><option value="original">Original</option></select></label>

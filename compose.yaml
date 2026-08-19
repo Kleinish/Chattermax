@@ -1,226 +1,88 @@
+x-chattermax-volumes: &chattermax-volumes
+  - ${INPUT_MOUNT:-./data/input}:/data/input
+  - ${CORPUS_SOURCES_MOUNT:-./data/corpus_sources}:/data/corpus_sources
+  - ${CORPUS_CACHE_MOUNT:-./data/corpus_cache}:/data/corpus_cache
+  - ${DATASET_RAW_MOUNT:-./data/dataset_raw}:/data/dataset_raw
+  - ${REJECTED_MOUNT:-./data/rejected}:/data/rejected
+  - ${DATASET_MOUNT:-./data/dataset}:/data/dataset
+  - ${TRAINING_MOUNT:-./data/training}:/data/training
+  - ${OUTPUT_MOUNT:-./data/output}:/data/output
+  - ${LOGS_MOUNT:-./data/logs}:/data/logs
+  - ${REPORTS_MOUNT:-./data/reports}:/data/reports
+  - ${SETTINGS_FILE_MOUNT:-./.env}:/app/.env
+  - hf-cache:/root/.cache/huggingface
+  - torch-cache:/root/.cache/torch
+
+x-generator-common: &generator-common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.generator
+  image: chattermax-generator
+  working_dir: /app
+  env_file:
+    - .env
+  environment:
+    WORKSPACE_ROOT: /app
+    DATA_ROOT: /data
+  volumes: *chattermax-volumes
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
 services:
   webui:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.generator
-    image: chatterbox-piper-webui
-    working_dir: /workspace
+    <<: [*generator-common, *gpu]
     command: ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8080"]
     ports:
       - "${WEBUI_PORT:-8080}:8080"
-    volumes:
-      # Application source stays with the project. The mounts below overlay only
-      # persistent/runtime data folders and can each point at a different share.
-      - type: bind
-        source: .
-        target: /workspace
-      - type: bind
-        source: ${INPUT_MOUNT:-./input}
-        target: /workspace/input
-      - type: bind
-        source: ${CORPUS_SOURCES_MOUNT:-./corpus_sources}
-        target: /workspace/corpus_sources
-      - type: bind
-        source: ${CORPUS_CACHE_MOUNT:-./corpus_cache}
-        target: /workspace/corpus_cache
-      - type: bind
-        source: ${DATASET_RAW_MOUNT:-./dataset_raw}
-        target: /workspace/dataset_raw
-      - type: bind
-        source: ${REJECTED_MOUNT:-./rejected}
-        target: /workspace/rejected
-      - type: bind
-        source: ${DATASET_MOUNT:-./dataset}
-        target: /workspace/dataset
-      - type: bind
-        source: ${TRAINING_MOUNT:-./training}
-        target: /workspace/training
-      - type: bind
-        source: ${OUTPUT_MOUNT:-./output}
-        target: /workspace/output
-      - type: bind
-        source: ${LOGS_MOUNT:-./logs}
-        target: /workspace/logs
-      - type: bind
-        source: ${REPORTS_MOUNT:-./reports}
-        target: /workspace/reports
-      - hf-cache:/root/.cache/huggingface
-      - torch-cache:/root/.cache/torch
-    env_file:
-      - .env
     environment:
+      WORKSPACE_ROOT: /app
+      DATA_ROOT: /data
       SPEECH_ISOLATOR_URL: http://speech-isolator:7860
     depends_on:
       speech-isolator:
         condition: service_healthy
     shm_size: "2gb"
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   corpus:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.generator
-    image: chatterbox-piper-webui
-    working_dir: /workspace
-    volumes:
-      - type: bind
-        source: .
-        target: /workspace
-      - type: bind
-        source: ${INPUT_MOUNT:-./input}
-        target: /workspace/input
-      - type: bind
-        source: ${CORPUS_SOURCES_MOUNT:-./corpus_sources}
-        target: /workspace/corpus_sources
-      - type: bind
-        source: ${CORPUS_CACHE_MOUNT:-./corpus_cache}
-        target: /workspace/corpus_cache
-      - type: bind
-        source: ${DATASET_RAW_MOUNT:-./dataset_raw}
-        target: /workspace/dataset_raw
-      - type: bind
-        source: ${REJECTED_MOUNT:-./rejected}
-        target: /workspace/rejected
-      - type: bind
-        source: ${DATASET_MOUNT:-./dataset}
-        target: /workspace/dataset
-      - type: bind
-        source: ${TRAINING_MOUNT:-./training}
-        target: /workspace/training
-      - type: bind
-        source: ${OUTPUT_MOUNT:-./output}
-        target: /workspace/output
-      - type: bind
-        source: ${LOGS_MOUNT:-./logs}
-        target: /workspace/logs
-      - type: bind
-        source: ${REPORTS_MOUNT:-./reports}
-        target: /workspace/reports
-    env_file:
-      - .env
+    <<: *generator-common
     command: ["python3", "scripts/prepare_corpus.py"]
 
   generator:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.generator
-    image: chatterbox-piper-webui
-    working_dir: /workspace
-    volumes:
-      - type: bind
-        source: .
-        target: /workspace
-      - type: bind
-        source: ${INPUT_MOUNT:-./input}
-        target: /workspace/input
-      - type: bind
-        source: ${CORPUS_SOURCES_MOUNT:-./corpus_sources}
-        target: /workspace/corpus_sources
-      - type: bind
-        source: ${CORPUS_CACHE_MOUNT:-./corpus_cache}
-        target: /workspace/corpus_cache
-      - type: bind
-        source: ${DATASET_RAW_MOUNT:-./dataset_raw}
-        target: /workspace/dataset_raw
-      - type: bind
-        source: ${REJECTED_MOUNT:-./rejected}
-        target: /workspace/rejected
-      - type: bind
-        source: ${DATASET_MOUNT:-./dataset}
-        target: /workspace/dataset
-      - type: bind
-        source: ${TRAINING_MOUNT:-./training}
-        target: /workspace/training
-      - type: bind
-        source: ${OUTPUT_MOUNT:-./output}
-        target: /workspace/output
-      - type: bind
-        source: ${LOGS_MOUNT:-./logs}
-        target: /workspace/logs
-      - type: bind
-        source: ${REPORTS_MOUNT:-./reports}
-        target: /workspace/reports
-      - hf-cache:/root/.cache/huggingface
-      - torch-cache:/root/.cache/torch
-    env_file:
-      - .env
+    <<: [*generator-common, *gpu]
     stdin_open: true
     tty: true
     shm_size: "2gb"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   trainer:
     build:
       context: .
       dockerfile: docker/Dockerfile.trainer
-    image: piper-voice-trainer
-    working_dir: /workspace
-    volumes:
-      - type: bind
-        source: .
-        target: /workspace
-      - type: bind
-        source: ${INPUT_MOUNT:-./input}
-        target: /workspace/input
-      - type: bind
-        source: ${CORPUS_SOURCES_MOUNT:-./corpus_sources}
-        target: /workspace/corpus_sources
-      - type: bind
-        source: ${CORPUS_CACHE_MOUNT:-./corpus_cache}
-        target: /workspace/corpus_cache
-      - type: bind
-        source: ${DATASET_RAW_MOUNT:-./dataset_raw}
-        target: /workspace/dataset_raw
-      - type: bind
-        source: ${REJECTED_MOUNT:-./rejected}
-        target: /workspace/rejected
-      - type: bind
-        source: ${DATASET_MOUNT:-./dataset}
-        target: /workspace/dataset
-      - type: bind
-        source: ${TRAINING_MOUNT:-./training}
-        target: /workspace/training
-      - type: bind
-        source: ${OUTPUT_MOUNT:-./output}
-        target: /workspace/output
-      - type: bind
-        source: ${LOGS_MOUNT:-./logs}
-        target: /workspace/logs
-      - type: bind
-        source: ${REPORTS_MOUNT:-./reports}
-        target: /workspace/reports
-      - torch-cache:/root/.cache/torch
+    image: chattermax-trainer
+    working_dir: /app
     env_file:
       - .env
+    environment:
+      WORKSPACE_ROOT: /app
+      DATA_ROOT: /data
+    volumes: *chattermax-volumes
     stdin_open: true
     tty: true
     shm_size: "4gb"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    <<: *gpu
 
   speech-isolator:
     build:
-      context: ./speech-isolator
-      dockerfile: Dockerfile
-    image: chatterbox-speech-isolator
+      context: .
+      dockerfile: docker/Dockerfile.speech-isolator
+    image: chattermax-speech-isolator
     expose:
       - "7860"
     environment:
@@ -228,15 +90,9 @@ services:
       XDG_CACHE_HOME: /data/cache
       DEFAULT_STRENGTH: medium
     volumes:
-      - type: bind
-        source: ${SPEECH_INPUT_MOUNT:-./speech-isolator/input}
-        target: /data/input
-      - type: bind
-        source: ${SPEECH_OUTPUT_MOUNT:-./speech-isolator/output}
-        target: /data/output
-      - type: bind
-        source: ${SPEECH_CACHE_MOUNT:-./speech-isolator/cache}
-        target: /data/cache
+      # Cleaned audio is written directly into the generator's input share.
+      - ${INPUT_MOUNT:-./data/input}:/data/output
+      - ${SPEECH_CACHE_MOUNT:-./data/speech-isolator/cache}:/data/cache
     restart: unless-stopped
 
 volumes:

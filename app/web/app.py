@@ -118,6 +118,8 @@ def reference_path(settings: dict[str, str] | None = None) -> Path:
     path = Path(configured)
     return path if path.is_absolute() else ROOT / path
 
+def custom_corpus_path() -> Path:
+    return ROOT / "corpus_sources" / "custom.txt"
 
 def reference_status(settings: dict[str, str] | None = None) -> dict[str, Any]:
     settings = settings or current_settings()
@@ -412,6 +414,101 @@ async def save_settings(request: Request):
     write_env_updates(updates)
     return current_settings()
 
+@app.get("/api/corpus/custom")
+def custom_corpus_status():
+    path = custom_corpus_path()
+
+    if not path.exists():
+        return {
+            "exists": False,
+            "filename": None,
+            "size": 0,
+            "phrases": 0,
+        }
+
+    lines = path.read_text(
+        encoding="utf-8",
+        errors="ignore",
+    ).splitlines()
+
+    phrases = sum(
+        1
+        for line in lines
+        if line.strip() and not line.strip().startswith("#")
+    )
+
+    return {
+        "exists": True,
+        "filename": "custom.txt",
+        "size": path.stat().st_size,
+        "phrases": phrases,
+    }
+
+
+@app.post("/api/corpus/custom")
+async def upload_custom_corpus(file: UploadFile = File(...)):
+    filename = Path(file.filename or "").name
+
+    if Path(filename).suffix.lower() != ".txt":
+        raise HTTPException(
+            400,
+            "Custom phrases must be uploaded as a .txt file",
+        )
+
+    target = custom_corpus_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    temp = target.with_suffix(".txt.uploading")
+
+    try:
+        with temp.open("wb") as output:
+            shutil.copyfileobj(file.file, output)
+            output.flush()
+            os.fsync(output.fileno())
+
+        if not temp.exists() or temp.stat().st_size == 0:
+            raise HTTPException(
+                400,
+                "Uploaded custom phrase file is empty",
+            )
+
+        # Validate that it is readable text before replacing the current file.
+        try:
+            text = temp.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                400,
+                "Custom phrase file must be UTF-8 text",
+            )
+
+        phrases = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+
+        if not phrases:
+            raise HTTPException(
+                400,
+                "The file does not contain any usable phrases",
+            )
+
+        os.replace(temp, target)
+
+        return {
+            "ok": True,
+            "filename": "custom.txt",
+            "size": target.stat().st_size,
+            "phrases": len(phrases),
+        }
+
+    finally:
+        temp.unlink(missing_ok=True)
+
+        try:
+            await file.close()
+        except Exception:
+            pass
 
 @app.post("/api/reference")
 async def upload_reference(file: UploadFile = File(...)):

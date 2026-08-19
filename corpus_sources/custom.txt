@@ -1,3 +1,0 @@
-# Add one application-specific phrase per line here.
-# Example:
-# The garage door has been open for ten minutes.

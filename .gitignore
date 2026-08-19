@@ -1,0 +1,21 @@
+# Local settings / secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data
+data/
+
+# Models/checkpoints
+*.ckpt
+*.onnx
+
+# Archives / OS / editors
+*.zip
+.DS_Store
+Thumbs.db
+.vscode/
