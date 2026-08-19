@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chatterbox → Piper</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <div>
+      <div class="eyebrow">VOICE TRAINING CONTROL PANEL</div>
+      <h1>Chatterbox <span>→</span> Piper</h1>
+      <p>Generate, validate, review, and prepare a high-quality Piper dataset.</p>
+    </div>
+    <div class="status-pill" id="jobPill">Idle</div>
+  </header>
+
+  <main>
+    <section class="stats" id="stats">
+      <article><div class="label">Accepted</div><div class="big" id="accepted">—</div></article>
+      <article><div class="label">Rejects to review</div><div class="big" id="rejected">—</div></article>
+      <article><div class="label">Corpus</div><div class="big" id="corpusTotal">—</div></article>
+      <article><div class="label">Complete</div><div class="big" id="percent">—</div></article>
+    </section>
+
+    <section class="grid two">
+      <article class="panel">
+        <div class="panel-head"><div><h2>Generation</h2><p>Supervised, resumable generation with fresh worker processes every chunk.</p></div><span class="badge" id="modelBadge">turbo</span></div>
+        <div class="progress"><div id="progressBar"></div></div>
+        <div class="kv"><span>Supervisor</span><strong id="supervisorStatus">—</strong></div>
+        <div class="kv"><span>Next corpus index</span><strong id="nextStart">—</strong></div>
+        <div class="actions">
+          <button class="primary" id="startBtn" onclick="startGeneration()">Start / Resume All</button>
+          <button onclick="stopJob()">Stop</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><div><h2>Dataset workflow</h2><p>Run supporting stages without opening a terminal.</p></div></div>
+        <div class="actions stacked">
+          <button onclick="startSimpleJob('corpus')">Build / Refresh Corpus</button>
+          <button onclick="startSimpleJob('validate')">Validate Dataset</button>
+          <button onclick="startSimpleJob('prepare')">Prepare Piper Dataset</button>
+        </div>
+        <p class="muted small">Piper training remains in the dedicated trainer image for now, avoiding dependency collisions with Chatterbox.</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>Live job log</h2><p>Output from the current web-launched task.</p></div><button class="ghost" onclick="clearLogView()">Clear view</button></div>
+      <pre id="log">No web-launched job output yet.</pre>
+    </section>
+
+    <section class="grid two reference-settings-grid">
+      <article class="panel reference-panel">
+        <div class="panel-head">
+          <div><h2>Reference voice + cleanup</h2><p>Upload your source reference, clean background noise with DeepFilterNet, preview both, and choose which version Chatterbox uses.</p></div>
+          <span class="badge" id="referenceModeBadge">Original</span>
+        </div>
+
+        <div class="drop">
+          <input type="file" id="referenceFile" accept="audio/*">
+          <button id="uploadReferenceBtn" onclick="uploadReference()">Upload Reference Audio</button>
+          <div class="muted small" id="referenceState">—</div>
+        </div>
+
+        <div class="reference-cleaner">
+          <div class="form-grid cleaner-controls">
+            <label>Noise reduction strength
+              <select id="cleanStrength">
+                <option value="light">Light</option>
+                <option value="medium" selected>Medium</option>
+                <option value="strong">Strong</option>
+              </select>
+            </label>
+            <label class="check-label"><input id="cleanNormalize" type="checkbox" checked> Normalize reference volume</label>
+            <label class="check-label"><input id="cleanRumble" type="checkbox" checked> Remove low-frequency rumble (70 Hz)</label>
+          </div>
+          <div class="actions">
+            <button class="primary" id="cleanReferenceBtn" onclick="cleanReference()">Clean Reference Audio</button>
+            <span class="muted small" id="cleanStatus">Upload a reference to enable cleanup.</span>
+          </div>
+          <p class="muted small"><strong>Light</strong> preserves more of the original recording. <strong>Medium</strong> is recommended. <strong>Strong</strong> adds DeepFilterNet's post-filter.</p>
+        </div>
+
+        <div class="reference-compare">
+          <div class="reference-audio-card">
+            <div class="reference-card-head"><span>Original</span><button class="ghost compact" id="useOriginalBtn" onclick="useReference('original')">Use Original</button></div>
+            <audio id="originalReferenceAudio" controls preload="metadata"></audio>
+          </div>
+          <div class="reference-audio-card">
+            <div class="reference-card-head"><span>Cleaned</span><button class="ghost compact" id="useCleanedBtn" onclick="useReference('cleaned')">Use Cleaned</button></div>
+            <audio id="cleanedReferenceAudio" controls preload="metadata"></audio>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><div><h2>Settings</h2><p>Saved to .env and used by the next worker process.</p></div></div>
+        <div class="form-grid">
+          <label>Model<select id="TTS_MODEL"><option value="turbo">Turbo</option><option value="original">Original</option></select></label>
+          <label>Whisper model<input id="WHISPER_MODEL"></label>
+          <label>ASR threshold<input id="MIN_ASR_SCORE" type="number" step="0.1"></label>
+          <label>Max silence<input id="MAX_SILENCE_FRACTION" type="number" step="0.01"></label>
+          <label>Attempts<input id="MAX_GENERATION_ATTEMPTS" type="number"></label>
+          <label>Chunk size<input id="GENERATION_CHUNK_SIZE" type="number"></label>
+        </div>
+        <div class="actions"><button onclick="saveSettings()">Save Settings</button></div>
+      </article>
+    </section>
+
+    <section class="panel" id="reviewPanel">
+      <div class="panel-head"><div><h2>Reject review</h2><p>Listen to the best rejected attempt and manually promote good samples.</p></div><span class="badge" id="rejectCount">0</span></div>
+      <div id="reviewEmpty" class="empty">Loading rejected samples…</div>
+      <div id="reviewCard" class="review hidden">
+        <div class="review-top"><div><div class="eyebrow" id="reviewIndex">REJECT</div><h3 id="reviewText"></h3></div><select id="attemptSelect" onchange="renderAttempt()"></select></div>
+        <audio id="reviewAudio" controls preload="metadata"></audio>
+        <div class="compare"><div><span>Whisper heard</span><p id="heard"></p></div><div class="metrics"><div><span>ASR</span><strong id="asr"></strong></div><div><span>Silence</span><strong id="silence"></strong></div><div><span>Duration</span><strong id="duration"></strong></div></div></div>
+        <div class="actions"><button class="primary" onclick="acceptCurrent()">Accept this attempt</button><button onclick="rejectCurrent()">Reject ID</button><button onclick="nextReject()">Next</button></div>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

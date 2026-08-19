@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Chatterbox-Piper-WebUI</Name>
+  <Repository>ghcr.io/YOUR_GITHUB_USERNAME/chatterbox-piper:latest</Repository>
+  <Registry>https://github.com/YOUR_GITHUB_USERNAME/chatterbox-piper/pkgs/container/chatterbox-piper</Registry>
+  <Network>bridge</Network>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/YOUR_GITHUB_USERNAME/chatterbox-piper/issues</Support>
+  <Project>https://github.com/YOUR_GITHUB_USERNAME/chatterbox-piper</Project>
+  <Overview>Web interface for Chatterbox synthetic voice generation, Whisper QA, reject review, and Piper dataset preparation.</Overview>
+  <Category>Tools: MediaApp:Other</Category>
+  <ExtraParams>--gpus=all --shm-size=2g</ExtraParams>
+  <PostArgs></PostArgs>
+  <CPUset></CPUset>
+  <DateInstalled></DateInstalled>
+  <DonateText></DonateText>
+  <DonateLink></DonateLink>
+  <Requires>NVIDIA GPU with the Unraid NVIDIA driver installed.</Requires>
+  <Config Name="Web UI" Target="8080" Default="8080" Mode="tcp" Description="Web interface port" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Workspace" Target="/workspace" Default="/mnt/user/appdata/chatterbox-piper" Mode="rw" Description="Persistent project, configuration, corpus, datasets and logs" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/chatterbox-piper</Config>
+  <Config Name="HF Token" Target="HF_TOKEN" Default="" Mode="" Description="Optional Hugging Face read token" Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="TTS Model" Target="TTS_MODEL" Default="turbo" Mode="" Description="turbo or original" Type="Variable" Display="always" Required="true" Mask="false">turbo</Config>
+  <Config Name="Generation Chunk Size" Target="GENERATION_CHUNK_SIZE" Default="2000" Mode="" Description="Fresh worker process after this many prompts" Type="Variable" Display="advanced" Required="true" Mask="false">2000</Config>
+</Container>

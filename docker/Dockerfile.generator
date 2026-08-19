@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONUNBUFFERED=1 \
+    WORKSPACE_ROOT=/workspace
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg git curl ca-certificates espeak-ng build-essential libsndfile1 sox \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && python -m pip install \
+      chatterbox-tts openai-whisper rapidfuzz soundfile scipy numpy tqdm \
+      num2words peft fastapi uvicorn jinja2 python-multipart httpx
+
+COPY . /opt/chatterbox-piper
+RUN chmod +x /opt/chatterbox-piper/docker/entrypoint.sh \
+    && find /opt/chatterbox-piper/scripts -type f -name '*.sh' -exec chmod +x {} +
+
+ENTRYPOINT ["/opt/chatterbox-piper/docker/entrypoint.sh"]
+WORKDIR /workspace
+EXPOSE 8080
+CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8080"]

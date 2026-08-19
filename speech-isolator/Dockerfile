@@ -1,0 +1,40 @@
+FROM python:3.10-slim-bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DATA_ROOT=/data \
+    XDG_CACHE_HOME=/data/cache \
+    DEFAULT_STRENGTH=medium
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    git \
+    ca-certificates \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Keep the PyTorch/TorchAudio pair on a version compatible with DeepFilterNet 0.5.6.
+# CPU wheels are intentional: DeepFilterNet is lightweight, and this avoids CUDA/TorchAudio
+# compatibility problems in the cleaner container. Chatty-Piper can still use the GPU separately.
+RUN python -m pip install --retries 10 --timeout 120 \
+    pip==24.0 setuptools==69.5.1 wheel==0.41.3 && \
+    python -m pip install --retries 10 --timeout 120 \
+    torch==2.1.2 torchaudio==2.1.2 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+COPY app/requirements.txt /app/requirements.txt
+RUN python -m pip install --retries 10 --timeout 120 -r /app/requirements.txt
+
+COPY app/ /app/
+
+RUN mkdir -p /data/input /data/output /data/work /data/cache
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/api/health', timeout=3)" || exit 1
+
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]

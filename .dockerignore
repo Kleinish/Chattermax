@@ -1,0 +1,30 @@
+.git
+.gitignore
+.env
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.zip
+
+# Runtime/user data must never be baked into published images
+input/*
+!input/.gitkeep
+dataset/
+dataset_raw/
+rejected/*
+!rejected/.gitkeep
+logs/*
+!logs/.gitkeep
+output/*
+!output/.gitkeep
+reports/*
+!reports/.gitkeep
+training/*
+!training/.gitkeep
+review/
+
+# Local caches/models
+.cache/
+*.ckpt
+*.onnx
