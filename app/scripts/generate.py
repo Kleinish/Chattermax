@@ -118,8 +118,18 @@ def main():
     if device == "cuda":
         print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-    model = ChatterboxTTS.from_pretrained(device=device)
-    model = ChatterboxTurboTTS.from_pretrained(device="cuda")
+    tts_model = os.getenv("TTS_MODEL", "original").strip().lower()
+
+    print(f"TTS model: {tts_model}")
+
+    if tts_model == "original":
+        model = ChatterboxTTS.from_pretrained(device=device)
+    elif tts_model == "turbo":
+        model = ChatterboxTurboTTS.from_pretrained(device=device)
+    else:
+        raise SystemExit(
+            f"Invalid TTS_MODEL={tts_model!r}. Expected 'original' or 'turbo'."
+        )
     asr = whisper.load_model(os.getenv("WHISPER_MODEL", "medium.en"), device=whisper_device)
 
     min_score = env_float("MIN_ASR_SCORE", 92)
