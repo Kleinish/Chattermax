@@ -8,17 +8,45 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DATA_ROOT=/data
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg git curl ca-certificates espeak-ng build-essential libsndfile1 sox \
+      ffmpeg \
+      git \
+      curl \
+      ca-certificates \
+      espeak-ng \
+      build-essential \
+      libsndfile1 \
+      sox \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade pip setuptools wheel \
     && python -m pip install \
-      chatterbox-tts openai-whisper rapidfuzz soundfile scipy numpy tqdm \
-      num2words peft fastapi uvicorn jinja2 python-multipart httpx \
-    && python -m pip uninstall -y resemble-perth perth || true \
+      chatterbox-tts \
+      openai-whisper \
+      rapidfuzz \
+      soundfile \
+      scipy \
+      numpy \
+      tqdm \
+      num2words \
+      peft \
+      fastapi \
+      uvicorn \
+      jinja2 \
+      python-multipart \
+      httpx
+
+# Replace Chatterbox's pinned Torch/Torchaudio pair with a CUDA 12.8 build.
+RUN python -m pip install --no-cache-dir --upgrade --force-reinstall \
+      torch==2.9.0 \
+      torchaudio==2.9.0 \
+      --index-url https://download.pytorch.org/whl/cu128
+
+# Use the current Perth source to avoid the
+# PerthImplicitWatermarker=None failure seen with some packaged versions.
+RUN python -m pip uninstall -y resemble-perth perth || true \
     && python -m pip install --no-cache-dir \
       "resemble-perth @ git+https://github.com/resemble-ai/Perth.git@master"
-      
+
 WORKDIR /app
 
 COPY app/scripts/ /app/scripts/
@@ -32,4 +60,5 @@ RUN chmod +x /usr/local/bin/chattermax-entrypoint \
 ENTRYPOINT ["/usr/local/bin/chattermax-entrypoint"]
 
 EXPOSE 8080
+
 CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8080"]
