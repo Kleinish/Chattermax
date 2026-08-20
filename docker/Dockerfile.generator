@@ -18,22 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       sox \
     && rm -rf /var/lib/apt/lists/*
 
+COPY docker/requirements/generator.txt /tmp/requirements.txt
+
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install \
-      chatterbox-tts \
-      openai-whisper \
-      rapidfuzz \
-      soundfile \
-      scipy \
-      numpy \
-      tqdm \
-      num2words \
-      peft \
-      fastapi \
-      uvicorn \
-      jinja2 \
-      python-multipart \
-      httpx
+    && python -m pip install -r /tmp/requirements.txt 
 
 # Replace Chatterbox's pinned Torch/Torchaudio pair with a CUDA 12.8 build.
 RUN python -m pip install --no-cache-dir --upgrade --force-reinstall \
