@@ -44,24 +44,23 @@ services:
     environment:
       WORKSPACE_ROOT: /app
       DATA_ROOT: /data
-      SPEECH_ISOLATOR_URL: http://speech-isolator:7860
-    depends_on:
-      speech-isolator:
-        condition: service_healthy
     shm_size: "2gb"
     restart: unless-stopped
 
   corpus:
+    profiles: ["jobs"]
     <<: *generator-common
     command: ["python3", "scripts/prepare_corpus.py"]
 
   generator:
+    profiles: ["jobs"]
     <<: [*generator-common, *gpu]
     stdin_open: true
     tty: true
     shm_size: "2gb"
 
   trainer:
+    profiles: ["jobs"]
     build:
       context: .
       dockerfile: docker/Dockerfile.trainer
@@ -79,6 +78,7 @@ services:
     <<: *gpu
 
   speech-isolator:
+    profiles: ["jobs"]
     build:
       context: .
       dockerfile: docker/Dockerfile.speech-isolator
@@ -90,11 +90,9 @@ services:
       XDG_CACHE_HOME: /data/cache
       DEFAULT_STRENGTH: medium
     volumes:
-      # Cleaned audio is written directly into the generator's input share.
       - ${INPUT_MOUNT:-./data/input}:/data/output
       - ${SPEECH_CACHE_MOUNT:-./data/speech-isolator/cache}:/data/cache
-    restart: unless-stopped
-
+      
 volumes:
   hf-cache:
   torch-cache:
