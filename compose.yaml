@@ -41,6 +41,22 @@ services:
     command: ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8080"]
     ports:
       - "${WEBUI_PORT:-8080}:8080"
+    volumes:
+      - ${DATA_ROOT:-./data}:/data
+      - ${INPUT_MOUNT:-./data/input}:/data/input
+      - ${CORPUS_SOURCES_MOUNT:-./data/corpus_sources}:/data/corpus_sources
+      - ${CORPUS_CACHE_MOUNT:-./data/corpus_cache}:/data/corpus_cache
+      - ${DATASET_RAW_MOUNT:-./data/dataset_raw}:/data/dataset_raw
+      - ${REJECTED_MOUNT:-./data/rejected}:/data/rejected
+      - ${DATASET_MOUNT:-./data/dataset}:/data/dataset
+      - ${TRAINING_MOUNT:-./data/training}:/data/training
+      - ${OUTPUT_MOUNT:-./data/output}:/data/output
+      - ${LOGS_MOUNT:-./data/logs}:/data/logs
+      - ${REPORTS_MOUNT:-./data/reports}:/data/reports
+      - ${SETTINGS_FILE_MOUNT:-./.env}:/app/.env
+      - hf-cache:/root/.cache/huggingface
+      - torch-cache:/root/.cache/torch
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       WORKSPACE_ROOT: /app
       DATA_ROOT: /data
@@ -92,7 +108,7 @@ services:
     volumes:
       - ${INPUT_MOUNT:-./data/input}:/data/output
       - ${SPEECH_CACHE_MOUNT:-./data/speech-isolator/cache}:/data/cache
-      
+
 volumes:
   hf-cache:
   torch-cache:
