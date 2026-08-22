@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import docker
 import asyncio
 import csv
 import json
@@ -28,7 +29,72 @@ WEB_STATE = LOGS / "webui-job.json"
 ENV_FILE = ROOT / ".env"
 SPEECH_ISOLATOR_URL = os.getenv("SPEECH_ISOLATOR_URL", "http://speech-isolator:7860").rstrip("/")
 
-app = FastAPI(title="Chatterbox → Piper", version="0.1.0")
+DOCKER_PROJECT = os.getenv("COMPOSE_PROJECT_NAME", "chattermax")
+SPEECH_ISOLATOR_SERVICE = "speech-isolator"
+
+def docker_client():
+    return docker.from_env()
+
+def find_compose_container(service: str):
+    """Find a container belonging to this Compose service."""
+    client = docker_client()
+
+    containers = client.containers.list(
+        all=True,
+        filters={
+            "label": f"com.docker.compose.service={service}"
+        },
+    )
+
+    if not containers:
+        return None
+
+    return containers[0]
+
+def start_compose_service(service: str):
+    container = find_compose_container(service)
+
+    if container is None:
+        raise RuntimeError(
+            f"No Compose container exists for {service}. "
+            f"Create it once with: docker compose --profile jobs create {service}"
+        )
+
+    container.reload()
+
+    if container.status != "running":
+        container.start()
+
+    return container
+
+
+def stop_compose_service(service: str) -> None:
+    subprocess.run(
+        [
+            "docker",
+            "compose",
+            "stop",
+            service,
+        ],
+        cwd=ROOT,
+        check=False,
+        env=process_env(),
+    )
+
+    subprocess.run(
+        [
+            "docker",
+            "compose",
+            "rm",
+            "-f",
+            service,
+        ],
+        cwd=ROOT,
+        check=False,
+        env=process_env(),
+    )
+
+app = FastAPI(title="ChatterMAX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=ROOT / "web" / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "web" / "templates")
 
@@ -574,49 +640,124 @@ def reference_audio(kind: str):
 @app.post("/api/reference/clean")
 async def clean_reference(request: Request):
     if jobs.status().get("running"):
-        raise HTTPException(409, "Stop the current generation job before cleaning the reference voice.")
+        raise HTTPException(
+            409,
+            "Stop the current generation job before cleaning the reference voice."
+        )
 
     source = original_reference_path() or reference_path()
     if not source.is_file() or source.stat().st_size == 0:
-        raise HTTPException(400, "Upload a reference voice before cleaning it.")
+        raise HTTPException(
+            400,
+            "Upload a reference voice before cleaning it."
+        )
 
     payload = await request.json()
     strength = str(payload.get("strength", "medium")).lower()
+
     if strength not in {"light", "medium", "strong"}:
-        raise HTTPException(400, "Strength must be light, medium, or strong.")
+        raise HTTPException(
+            400,
+            "Strength must be light, medium, or strong."
+        )
+
     normalize = bool(payload.get("normalize", True))
     remove_rumble = bool(payload.get("remove_rumble", True))
 
+    container = None
+
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
+        container = start_compose_service(SPEECH_ISOLATOR_SERVICE)
+
+        # Wait up to 60 seconds for the service to become ready.
+        deadline = time.time() + 60
+
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(600.0, connect=5.0)
+        ) as client:
+
+            while True:
+                try:
+                    health = await client.get(
+                        f"{SPEECH_ISOLATOR_URL}/api/health"
+                    )
+
+                    if health.status_code == 200:
+                        break
+
+                except httpx.HTTPError:
+                    pass
+
+                if time.time() >= deadline:
+                    raise RuntimeError(
+                        "Speech Isolator did not become ready within 60 seconds."
+                    )
+
+                await asyncio.sleep(1)
+
             with source.open("rb") as audio_file:
                 response = await client.post(
                     f"{SPEECH_ISOLATOR_URL}/api/clean",
-                    files={"file": (source.name, audio_file, "application/octet-stream")},
+                    files={
+                        "file": (
+                            source.name,
+                            audio_file,
+                            "application/octet-stream"
+                        )
+                    },
                     data={
                         "strength": strength,
                         "normalize": str(normalize).lower(),
                         "remove_rumble": str(remove_rumble).lower(),
                     },
                 )
+
             response.raise_for_status()
+
             result = response.json()
             cleaned_url = result.get("cleaned_url")
+
             if not cleaned_url:
-                raise RuntimeError("Speech Isolator did not return a cleaned file URL.")
+                raise RuntimeError(
+                    "Speech Isolator did not return a cleaned file URL."
+                )
 
-            cleaned_response = await client.get(f"{SPEECH_ISOLATOR_URL}{cleaned_url}")
+            cleaned_response = await client.get(
+                f"{SPEECH_ISOLATOR_URL}{cleaned_url}"
+            )
+
             cleaned_response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.text[-4000:] if exc.response is not None else str(exc)
-        raise HTTPException(502, f"Speech Isolator failed: {detail}") from exc
-    except (httpx.HTTPError, RuntimeError) as exc:
-        raise HTTPException(502, f"Speech Isolator unavailable: {exc}") from exc
+            cleaned_bytes = cleaned_response.content
+            
 
+    except httpx.HTTPStatusError as exc:
+        detail = (
+            exc.response.text[-4000:]
+            if exc.response is not None
+            else str(exc)
+        )
+        raise HTTPException(
+            502,
+            f"Speech Isolator failed: {detail}"
+        ) from exc
+
+    except (httpx.HTTPError, RuntimeError) as exc:
+        raise HTTPException(
+            502,
+            f"Speech Isolator unavailable: {exc}"
+        ) from exc
+
+    finally:
+        if container is not None:
+            try:
+                container.stop(timeout=10)
+            except Exception:
+                pass
+    
     target = cleaned_reference_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(".wav.downloading")
-    temp.write_bytes(cleaned_response.content)
+    temp.write_bytes(cleaned_bytes)
     if temp.stat().st_size == 0:
         temp.unlink(missing_ok=True)
         raise HTTPException(502, "Speech Isolator returned an empty file.")
